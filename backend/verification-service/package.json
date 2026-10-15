@@ -1,0 +1,19 @@
+{
+  "name": "@flowmaster/verification-service",
+  "version": "1.0.0",
+  "description": "FlowMaster Verification Service - Identity/KYC verification and Saga compensation handler",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1",
+    "kafkajs": "^2.2.4",
+    "prom-client": "^15.1.0"
+  }
+}

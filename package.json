@@ -1,0 +1,27 @@
+{
+  "name": "flowmaster-task-orchestrator",
+  "version": "1.0.0",
+  "description": "FlowMaster Distributed Task Orchestrator with Microservices, Saga Pattern, Kafka, and PostgreSQL",
+  "private": true,
+  "workspaces": [
+    "backend/shared",
+    "backend/orchestrator-service",
+    "backend/verification-service",
+    "backend/credit-service",
+    "frontend"
+  ],
+  "scripts": {
+    "migrate": "node backend/shared/migrate.js",
+    "start:orchestrator": "node backend/orchestrator-service/src/index.js",
+    "start:verification": "node backend/verification-service/src/index.js",
+    "start:credit": "node backend/credit-service/src/index.js",
+    "start:frontend": "npm --prefix frontend run dev",
+    "start:backend": "node scripts/start-all.js",
+    "test": "node --test tests/**/*.test.js",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:integration": "node --test tests/integration/*.test.js"
+  },
+  "devDependencies": {
+    "supertest": "^6.3.4"
+  }
+}

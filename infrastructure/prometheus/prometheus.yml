@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'flowmaster-orchestrator'
+    metrics_path: '/api/v1/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:5000', 'localhost:5000']
+
+  - job_name: 'flowmaster-verification'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:5001', 'localhost:5001']
+
+  - job_name: 'flowmaster-credit'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:5002', 'localhost:5002']

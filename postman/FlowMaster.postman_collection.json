@@ -1,0 +1,506 @@
+{
+  "info": {
+    "_postman_id": "flowmaster-orchestrator-collection",
+    "name": "FlowMaster Distributed Task Orchestrator",
+    "description": "Production-grade API test collection for FlowMaster with Saga orchestration, Kafka messaging, PostgreSQL persistence, and fault recovery.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Health and Readiness Checks",
+      "item": [
+        {
+          "name": "Orchestrator Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/health", "host": ["{{baseUrl}}"], "path": ["api", "v1", "health"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('PostgreSQL component is UP', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.components.database.status).to.eql('UP');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orchestrator Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/ready", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ready"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Readiness status is READY', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('READY');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verification Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{verificationUrl}}/health", "host": ["{{verificationUrl}}"], "path": ["health"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Verification service status is UP', function () { pm.response.to.have.status(200); });"],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Credit Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{creditUrl}}/health", "host": ["{{creditUrl}}"], "path": ["health"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Credit service status is UP', function () { pm.response.to.have.status(200); });"],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Workflow Lifecycle & Sagas",
+      "item": [
+        {
+          "name": "Submit Successful Workflow (Happy Path)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-idempotency-key", "value": "happy-path-{{$timestamp}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workflowType\": \"kyc_approval_pipeline\",\n  \"inputPayload\": {\n    \"customerName\": \"Aarav Mehta\",\n    \"idNumber\": \"KYC-VALID-8910\",\n    \"idType\": \"AADHAAR\",\n    \"loanAmount\": 150000,\n    \"monthlyIncome\": 65000,\n    \"creditScore\": 780\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json).to.have.property('workflowId');",
+                  "pm.environment.set('workflowId', json.workflowId);",
+                  "pm.environment.set('correlationId', json.correlationId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Workflow Status by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows", "{{workflowId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json.workflow_id).to.eql(pm.environment.get('workflowId'));",
+                  "pm.expect(json.steps).to.be.an('array');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Workflow Step Timeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}/steps", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows", "{{workflowId}}", "steps"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json.steps).to.be.an('array');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Workflow Event History (Event Sourcing)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}/events", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows", "{{workflowId}}", "events"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json.events.length).to.be.above(0);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Workflow Specific Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}/metrics", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows", "{{workflowId}}", "metrics"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json).to.have.property('totalDurationMs');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Compensation & Failure Scenarios",
+      "item": [
+        {
+          "name": "Credit Rejection Triggers Verification Compensation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workflowType\": \"kyc_approval_pipeline\",\n  \"inputPayload\": {\n    \"customerName\": \"Rohan Joshi\",\n    \"idNumber\": \"KYC-VALID-7722\",\n    \"idType\": \"AADHAAR\",\n    \"loanAmount\": 500000,\n    \"monthlyIncome\": 20000,\n    \"creditScore\": 520,\n    \"simulateReject\": true\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.environment.set('compWorkflowId', json.workflowId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fast-Fail Verification Failure",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workflowType\": \"kyc_approval_pipeline\",\n  \"inputPayload\": {\n    \"customerName\": \"Blacklisted User\",\n    \"idNumber\": \"FAIL_KYC\",\n    \"idType\": \"AADHAAR\",\n    \"loanAmount\": 100000,\n    \"monthlyIncome\": 40000,\n    \"creditScore\": 750,\n    \"failVerification\": true\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () { pm.response.to.have.status(201); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Resilience, Replay & Recovery",
+      "item": [
+        {
+          "name": "Retry Failed Workflow",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}/retry", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows", "{{workflowId}}", "retry"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replay Workflow from PostgreSQL Event Store",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}/replay", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows", "{{workflowId}}", "replay"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json).to.have.property('resumedAtStep');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trigger Crash Recovery Scan",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/recovery", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "recovery"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json).to.have.property('recovered');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Circuit Breakers & Validation",
+      "item": [
+        {
+          "name": "Get Circuit Breakers Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/circuit-breakers", "host": ["{{baseUrl}}"], "path": ["api", "v1", "circuit-breakers"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json.breakers).to.be.an('array');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trip Circuit Breaker (Administrative)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/circuit-breakers/orchestrator-saga/trip", "host": ["{{baseUrl}}"], "path": ["api", "v1", "circuit-breakers", "orchestrator-saga", "trip"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json.status.state).to.eql('OPEN');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset Circuit Breaker (Administrative)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/circuit-breakers/orchestrator-saga/reset", "host": ["{{baseUrl}}"], "path": ["api", "v1", "circuit-breakers", "orchestrator-saga", "reset"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json.status.state).to.eql('CLOSED');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject Invalid YAML Schema",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"yamlContent\": \"name: invalid_wf\\nsteps:\\n  - missing_fields: true\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/definitions/validate", "host": ["{{baseUrl}}"], "path": ["api", "v1", "definitions", "validate"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json.valid).to.be.false;"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate Idempotency Key Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-idempotency-key", "value": "test-fixed-idempotency-key-999" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workflowType\": \"kyc_approval_pipeline\",\n  \"inputPayload\": {\n    \"customerName\": \"Idempotent Tester\",\n    \"idNumber\": \"KYC-IDEM-001\",\n    \"loanAmount\": 100000,\n    \"monthlyIncome\": 40000,\n    \"creditScore\": 750\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/workflows", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workflows"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () { pm.expect([200, 201]).to.include(pm.response.code); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Telemetry & Metrics",
+      "item": [
+        {
+          "name": "Scrape Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/metrics", "host": ["{{baseUrl}}"], "path": ["api", "v1", "metrics"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Contains flowmaster metrics', function () {",
+                  "    pm.expect(pm.response.text()).to.include('flowmaster_');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Dashboard Telemetry Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/dashboard-stats", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "dashboard-stats"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.expect(json).to.have.property('counts');",
+                  "pm.expect(json).to.have.property('successRate');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

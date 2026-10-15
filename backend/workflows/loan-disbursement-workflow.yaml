@@ -1,0 +1,43 @@
+name: "loan_disbursement_pipeline"
+version: "1.0.0"
+description: "End-to-end loan application, verification, credit underwriting, and account settlement"
+timeoutSeconds: 600
+initialStep: "verify_identity"
+
+steps:
+  - id: "verify_identity"
+    name: "Customer ID & AML Verification"
+    order: 1
+    service: "verification-service"
+    startEvent: "verification.start"
+    resultEvent: "verification.result"
+    compensateEvent: "verification.compensate"
+    timeoutMs: 15000
+    retryPolicy:
+      maxRetries: 3
+      backoffMs: 1500
+      exponential: true
+    compensation:
+      action: "REVERSE_KYC"
+      required: true
+      timeoutMs: 5000
+
+  - id: "credit_check"
+    name: "Bureau Credit Assessment"
+    order: 2
+    service: "credit-service"
+    startEvent: "credit.start"
+    resultEvent: "credit.result"
+    compensateEvent: null
+    timeoutMs: 15000
+    retryPolicy:
+      maxRetries: 3
+      backoffMs: 1500
+      exponential: true
+    compensation:
+      action: null
+      required: false
+
+completionStep:
+  name: "disburse_funds"
+  status: "COMPLETED"
